@@ -660,7 +660,9 @@ this.loadToken()
          </div>
      </header>
      
-         <p className='footer'>Pancakes are best served with coffee: 0x20F857b13D6C546eC77aFE47317EA3c5a75c1c6c</p>
+         <p className='footer'>Day 1 - Day 5 is from block 4438000-4582000</p>
+         <p className='footer'>Day 6 - Day 10 is from block 4582001-4726000</p>
+
 
     </div>
     
