@@ -43,7 +43,7 @@ class Countdown extends Component {
         let locked = 'insufficient-finds'
         if(this.state.days <= 0 && this.state.hours <= 0 && this.state.minutes <= 0 && this.state.seconds <= 0 ){         
             return(   
-            <div className="countdown"><strong>Trading Competition Countdown: Ended</strong></div>
+            <div className="countdown"><strong>Trading Competition Countdown: Close</strong></div>
             );
         }
   

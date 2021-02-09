@@ -6,6 +6,7 @@ import Navbar from './Components/Navbar';
 import Countdown from './Components/Countdown';
 //import Web3 from 'web3';
 import {ditto_swap_address, ditto_swap_abi} from './DittoPair';
+import {ditto_token_address, ditto_token_abi} from './DittoToken';
 import { CSVLink} from "react-csv";
 import numeral from 'numeral';
 import Blacklist from './Blacklist.json';
@@ -20,6 +21,7 @@ class App extends Component {
       super(props);
       this.state = {
         ditto_pair:[],
+        ditto_token:[],
         firstBlock:3316992,
 
         toBlock:0,
@@ -36,6 +38,7 @@ class App extends Component {
 
         swaps:[],
         address_swaps:[],
+        address_swapss:[],
         filter:[],
         added:[],
         sortedVolume:[],
@@ -43,6 +46,9 @@ class App extends Component {
 
         blockError:[],
         whitelist:[],
+
+        transfers:[],
+        sorted_transfers:[],
 
         numberOfDays_competition:10,
         competitionStartBlock:4438000,
@@ -56,7 +62,8 @@ class App extends Component {
       }
     }
 
-  async loadDay(){ 
+
+  async loadToken(){ 
  
       this.setState({
         swaps:[],
@@ -64,6 +71,85 @@ class App extends Component {
         filter:[],
         sortedVolume:[],
         loading:true
+      })
+       
+        const web3 = new Web3('https://bsc-dataseed1.binance.org:443');
+        const ditto_token = new web3.eth.Contract(ditto_token_abi, ditto_token_address);
+        this.setState({ditto_token:ditto_token});
+        const currentBlock = await web3.eth.getBlockNumber()
+        this.setState({fromBlock:this.state.competitionStartBlock,toBlock:this.state.competitionStartBlock + (this.state.blocksPerDay * this.state.numberOfDays_competition),lastKnownBlock:currentBlock })
+    
+        const current_time = await web3.eth.getBlock(this.state.lastKnownBlock)
+        const start_time = await web3.eth.getBlock(this.state.competitionStartBlock)
+        let competitionDays = (this.state.blocksPerDay * this.state.numberOfDays_competition)*3
+    
+        this.setState({start_time:new Date(parseInt(start_time.timestamp,10)*1000),
+                       end_time:new Date(parseInt(start_time.timestamp + competitionDays,10)*1000),
+                       lastKnownTime:new Date(parseInt(current_time.timestamp,10)*1000)})
+       
+       ditto_token.getPastEvents("Transfer",{filter: {to:'0x470BC451810B312BBb1256f96B0895D95eA659B1'},fromBlock:this.state.fromBlock, toBlock:this.state.toBlock})
+        .then(events=>{
+          var newest = events.concat().sort((a,b)=> b.blockNumber- a.blockNumber);
+          this.setState({swaps:newest.map(value=>(value.returnValues))},()=>console.log());
+            for(var i = 0; i < this.state.swaps.length;i++){
+                   
+                this.setState({address_swaps:[...this.state.address_swaps,{address:this.state.swaps[i].from,
+                  transfer_in:this.state.swaps[i].value / 1000000000,
+                  ditto_in:0,
+                  ditto_out:0, 
+                  total_volume:(this.state.swaps[i].value / 1000000000),
+                  fromBlock:numeral(this.state.fromBlock).format('0,00'),
+                  toBlock:numeral(this.state.toBlock).format('0,00')}]})
+                
+         let index = this.state.filter.findIndex(x=>x.address === this.state.address_swaps[i].address)
+          if(index === -1){
+            this.setState({filter:[...this.state.filter,this.state.address_swaps[i]]})
+          }
+      
+         else{
+      
+          let filter=  [...this.state.filter]
+          let transfer = this.state.filter[index].transfer_in + this.state.address_swaps[i].transfer_in
+          let In = this.state.filter[index].ditto_in + this.state.address_swaps[i].ditto_in
+          let Out = this.state.filter[index].ditto_out + this.state.address_swaps[i].ditto_out 
+          let total =  transfer
+          
+           filter[index] = {address:this.state.filter[index].address, 
+                            transfer_in:transfer,
+                            ditto_in:In,
+                            ditto_out:Out, 
+                            total_volume:total,
+                            fromBlock:numeral(this.state.fromBlock).format('0,00'),
+                            toBlock:numeral(this.state.toBlock).format('0,00')}
+      
+           this.setState({filter,lastKnownBlock:currentBlock })     
+         }      
+        }
+        
+        this.setState({whitelist:this.state.filter.filter((blacklisted)=>blacklisted.address !== Blacklist.Address[1]
+          && blacklisted.address !== Blacklist.Address[2]
+          && blacklisted.address !== Blacklist.Address[3]
+          && blacklisted.address !== Blacklist.Address[4]
+          && blacklisted.address !== Blacklist.Address[5]
+          && blacklisted.address !== Blacklist.Address[6]  
+          )})
+    
+        this.setState({sortedVolume:this.state.whitelist.concat().sort((a,b)=> b.total_volume - a.total_volume)})
+        }).catch((err)=> this.setState({blockError:'Too Deep! Try searching smaller block difference, ie: from-block:4,000,000 to-block:4,200,000 '}))
+        this.loadDay()
+        }
+
+
+
+  async loadDay(){ 
+ 
+      this.setState({
+      swaps:[],
+      address_swaps:[],
+      address_swapss:[],
+      filter:[],
+      sortedVolume:[],
+      loading:true
       })
        
         const web3 = new Web3('https://bsc-dataseed1.binance.org:443');
@@ -79,36 +165,42 @@ class App extends Component {
         this.setState({start_time:new Date(parseInt(start_time.timestamp,10)*1000),
                        end_time:new Date(parseInt(start_time.timestamp + competitionDays,10)*1000),
                        lastKnownTime:new Date(parseInt(current_time.timestamp,10)*1000)})
-
+       
+        
         ditto_pair.getPastEvents("Swap",{fromBlock:this.state.fromBlock, toBlock:this.state.toBlock})
         .then(events=>{
           var newest = events.concat().sort((a,b)=> b.blockNumber- a.blockNumber);
           this.setState({swaps:newest.map(value=>(value.returnValues))},()=>console.log());
             for(var i = 0; i < this.state.swaps.length;i++){
                    
-                this.setState({address_swaps:[...this.state.address_swaps,{address:this.state.swaps[i].to,
+                this.setState({address_swapss:[...this.state.address_swapss,{address:this.state.swaps[i].to,
+                  transfer_in:0,
                   ditto_in:this.state.swaps[i].amount0Out / 1000000000,
                   ditto_out:this.state.swaps[i].amount0In / 1000000000, 
                   total_volume:(this.state.swaps[i].amount0Out / 1000000000) + this.state.swaps[i].amount0In / 1000000000,
                   fromBlock:numeral(this.state.fromBlock).format('0,00'),
                   toBlock:numeral(this.state.toBlock).format('0,00')}]})
                 
-         let index = this.state.filter.findIndex(x=>x.address === this.state.address_swaps[i].address)
+         let index = this.state.filter.findIndex(x=>x.address === this.state.address_swapss[i].address)
           if(index === -1){
-            this.setState({filter:[...this.state.filter,this.state.address_swaps[i]]})
+            this.setState({filter:[...this.state.filter,this.state.address_swapss[i]]})
           }
       
          else{
-      
-          let filter=  [...this.state.filter]
-          let In = this.state.filter[index].ditto_in + this.state.address_swaps[i].ditto_in
-          let Out = this.state.filter[index].ditto_out + this.state.address_swaps[i].ditto_out 
-          let total =  In + Out
-          
-           filter[index] = {address:this.state.filter[index].address, ditto_in:In,ditto_out:Out, 
-                            total_volume:total,
-                            fromBlock:numeral(this.state.fromBlock).format('0,00'),
-                            toBlock:numeral(this.state.toBlock).format('0,00')}
+           
+          let filter = [...this.state.filter]
+          let transfer = this.state.filter[index].transfer_in
+          let In = this.state.filter[index].ditto_in + this.state.address_swapss[i].ditto_in
+          let Out = this.state.filter[index].ditto_out + this.state.address_swapss[i].ditto_out 
+          let total =  transfer + In + Out
+    
+          filter[index] = {address:this.state.filter[index].address, 
+                      transfer_in:transfer,
+                      ditto_in:In,
+                      ditto_out:Out, 
+                      total_volume:total,
+                      fromBlock:numeral(this.state.fromBlock).format('0,00'),
+                      toBlock:numeral(this.state.toBlock).format('0,00')}
       
            this.setState({filter,lastKnownBlock:currentBlock })     
          }      
@@ -119,12 +211,84 @@ class App extends Component {
           && blacklisted.address !== Blacklist.Address[3]
           && blacklisted.address !== Blacklist.Address[4]
           && blacklisted.address !== Blacklist.Address[5] 
+          && blacklisted.address !== Blacklist.Address[6]
           )})
 
         this.setState({sortedVolume:this.state.whitelist.concat().sort((a,b)=> b.total_volume - a.total_volume),loading:false})
         }).catch((err)=> this.setState({blockError:'Too Deep! Try searching smaller block difference, ie: from-block:4,000,000 to-block:4,200,000 '}))
         
-        }
+    }
+
+
+
+async loadSearch(){ 
+ 
+  this.setState({
+    swaps:[],
+    address_swaps:[],
+    filter:[],
+    sortedVolume:[],
+    loading:true
+  })
+   
+    const web3 = new Web3('https://bsc-dataseed1.binance.org:443');
+    const ditto_token = new web3.eth.Contract(ditto_token_abi, ditto_token_address);
+    this.setState({ditto_token:ditto_token});
+    const currentBlock = await web3.eth.getBlockNumber();
+  this.setState({lastKnownBlock:currentBlock })
+   
+   ditto_token.getPastEvents("Transfer",{filter: {to:'0x470BC451810B312BBb1256f96B0895D95eA659B1'},fromBlock:this.state.fromBlock, toBlock:this.state.toBlock})
+    .then(events=>{
+      var newest = events.concat().sort((a,b)=> b.blockNumber- a.blockNumber);
+      this.setState({swaps:newest.map(value=>(value.returnValues))},()=>console.log());
+        for(var i = 0; i < this.state.swaps.length;i++){
+               
+            this.setState({address_swaps:[...this.state.address_swaps,{address:this.state.swaps[i].from,
+              transfer_in:this.state.swaps[i].value / 1000000000,
+              ditto_in:0,
+              ditto_out:0, 
+              total_volume:(this.state.swaps[i].value / 1000000000),
+              fromBlock:numeral(this.state.fromBlock).format('0,00'),
+              toBlock:numeral(this.state.toBlock).format('0,00')}]})
+            
+     let index = this.state.filter.findIndex(x=>x.address === this.state.address_swaps[i].address)
+      if(index === -1){
+        this.setState({filter:[...this.state.filter,this.state.address_swaps[i]]})
+      }
+  
+     else{
+  
+      let filter=  [...this.state.filter]
+      let transfer = this.state.filter[index].transfer_in + this.state.address_swaps[i].transfer_in
+      let In = this.state.filter[index].ditto_in + this.state.address_swaps[i].ditto_in
+      let Out = this.state.filter[index].ditto_out + this.state.address_swaps[i].ditto_out 
+      let total =  transfer
+      
+       filter[index] = {address:this.state.filter[index].address, 
+                        transfer_in:transfer,
+                        ditto_in:In,
+                        ditto_out:Out, 
+                        total_volume:total,
+                        fromBlock:numeral(this.state.fromBlock).format('0,00'),
+                        toBlock:numeral(this.state.toBlock).format('0,00')}
+  
+       this.setState({filter,lastKnownBlock:currentBlock })     
+     }      
+    }
+    
+    this.setState({whitelist:this.state.filter.filter((blacklisted)=>blacklisted.address !== Blacklist.Address[1]
+      && blacklisted.address !== Blacklist.Address[2]
+      && blacklisted.address !== Blacklist.Address[3]
+      && blacklisted.address !== Blacklist.Address[4]
+      && blacklisted.address !== Blacklist.Address[5] 
+      && blacklisted.address !== Blacklist.Address[6]
+      )})
+
+    this.setState({sortedVolume:this.state.whitelist.concat().sort((a,b)=> b.total_volume - a.total_volume)})
+    }).catch((err)=> this.setState({blockError:'Too Deep! Try searching smaller block difference, ie: from-block:4,000,000 to-block:4,200,000 '}))
+    this.loadBlockchain()
+    }
+
 
 
 async loadBlockchain(){ 
@@ -132,6 +296,7 @@ async loadBlockchain(){
 this.setState({
   swaps:[],
   address_swaps:[],
+  address_swapss:[],
   filter:[],
   sortedVolume:[],
   loading:true
@@ -148,7 +313,8 @@ this.setState({
     var newest = events.concat().sort((a,b)=> b.blockNumber- a.blockNumber);
     this.setState({swaps:newest.map(value=>(value.returnValues))},()=>console.log());
       for(var i = 0; i < this.state.swaps.length;i++){
-          this.setState({address_swaps:[...this.state.address_swaps,{address:this.state.swaps[i].to,
+          this.setState({address_swapss:[...this.state.address_swapss,{address:this.state.swaps[i].to,
+            transfer_in:0,
             ditto_in:this.state.swaps[i].amount0Out / 1000000000,
             ditto_out:this.state.swaps[i].amount0In / 1000000000, 
             total_volume:(this.state.swaps[i].amount0Out / 1000000000) + this.state.swaps[i].amount0In / 1000000000,
@@ -156,24 +322,28 @@ this.setState({
             toBlock:numeral(this.state.toBlock).format('0,00')}]})
 
   
-   let index = this.state.filter.findIndex(x=>x.address ===  this.state.address_swaps[i].address)
+   let index = this.state.filter.findIndex(x=>x.address ===  this.state.address_swapss[i].address)
     if(index === -1){
-      this.setState({filter:[...this.state.filter,this.state.address_swaps[i]]})
+      this.setState({filter:[...this.state.filter,this.state.address_swapss[i]]})
     }
 
    else{
 
-    let filter=  [...this.state.filter]
-    let In = this.state.filter[index].ditto_in + this.state.address_swaps[i].ditto_in
-    let Out = this.state.filter[index].ditto_out + this.state.address_swaps[i].ditto_out 
-    let total =  In + Out
-    
-     filter[index] = {address:this.state.filter[index].address, ditto_in:In,ditto_out:Out, 
-                      total_volume:total,
-                      fromBlock:numeral(this.state.fromBlock).format('0,00'),
-                      toBlock:numeral(this.state.toBlock).format('0,00')}
+    let filter = [...this.state.filter]
+    let transfer = this.state.filter[index].transfer_in
+    let In = this.state.filter[index].ditto_in + this.state.address_swapss[i].ditto_in
+    let Out = this.state.filter[index].ditto_out + this.state.address_swapss[i].ditto_out 
+    let total =  transfer + In + Out
 
-     this.setState({filter,lastKnownBlock:currentBlock })
+    filter[index] = {address:this.state.filter[index].address, 
+                transfer_in:transfer,
+                ditto_in:In,
+                ditto_out:Out, 
+                total_volume:total,
+                fromBlock:numeral(this.state.fromBlock).format('0,00'),
+                toBlock:numeral(this.state.toBlock).format('0,00')}
+
+     this.setState({filter,lastKnownBlock:currentBlock })     
 
    }
    
@@ -184,6 +354,7 @@ this.setState({
     && blacklisted.address !== Blacklist.Address[3]
     && blacklisted.address !== Blacklist.Address[4]
     && blacklisted.address !== Blacklist.Address[5] 
+    && blacklisted.address !== Blacklist.Address[6]
     )})
 
   this.setState({sortedVolume:this.state.whitelist.concat().sort((a,b)=> b.total_volume - a.total_volume),loading:false})   
@@ -193,11 +364,81 @@ this.setState({
   }
 
 
+  async searchDay(){ 
+ 
+    this.setState({
+      swaps:[],
+      address_swaps:[],
+      filter:[],
+      sortedVolume:[],
+      loading:true
+    })
+     
+      const web3 = new Web3('https://bsc-dataseed1.binance.org:443');
+      const ditto_token = new web3.eth.Contract(ditto_token_abi, ditto_token_address);
+      this.setState({ditto_token:ditto_token});
+      const currentBlock = await web3.eth.getBlockNumber();
+      this.setState({lastKnownBlock:currentBlock })
+     
+     ditto_token.getPastEvents("Transfer",{filter: {to:'0x470BC451810B312BBb1256f96B0895D95eA659B1'},fromBlock:this.state.fromBlock, toBlock:this.state.toBlock})
+      .then(events=>{
+        var newest = events.concat().sort((a,b)=> b.blockNumber- a.blockNumber);
+        this.setState({swaps:newest.map(value=>(value.returnValues))},()=>console.log());
+          for(var i = 0; i < this.state.swaps.length;i++){
+                 
+              this.setState({address_swaps:[...this.state.address_swaps,{address:this.state.swaps[i].from,
+                transfer_in:this.state.swaps[i].value / 1000000000,
+                ditto_in:0,
+                ditto_out:0, 
+                total_volume:(this.state.swaps[i].value / 1000000000),
+                fromBlock:numeral(this.state.fromBlock).format('0,00'),
+                toBlock:numeral(this.state.toBlock).format('0,00')}]})
+              
+       let index = this.state.filter.findIndex(x=>x.address === this.state.address_swaps[i].address)
+        if(index === -1){
+          this.setState({filter:[...this.state.filter,this.state.address_swaps[i]]})
+        }
+    
+       else{
+    
+        let filter=  [...this.state.filter]
+        let transfer = this.state.filter[index].transfer_in + this.state.address_swaps[i].transfer_in
+        let In = this.state.filter[index].ditto_in + this.state.address_swaps[i].ditto_in
+        let Out = this.state.filter[index].ditto_out + this.state.address_swaps[i].ditto_out 
+        let total =  transfer
+        
+         filter[index] = {address:this.state.filter[index].address, 
+                          transfer_in:transfer,
+                          ditto_in:In,
+                          ditto_out:Out, 
+                          total_volume:total,
+                          fromBlock:numeral(this.state.fromBlock).format('0,00'),
+                          toBlock:numeral(this.state.toBlock).format('0,00')}
+    
+         this.setState({filter,lastKnownBlock:currentBlock })     
+       }      
+      }
+      
+      this.setState({whitelist:this.state.filter.filter((blacklisted)=>blacklisted.address !== Blacklist.Address[1]
+        && blacklisted.address !== Blacklist.Address[2]
+        && blacklisted.address !== Blacklist.Address[3]
+        && blacklisted.address !== Blacklist.Address[4]
+        && blacklisted.address !== Blacklist.Address[5] 
+        && blacklisted.address !== Blacklist.Address[6]
+        )})
+  
+      this.setState({sortedVolume:this.state.whitelist.concat().sort((a,b)=> b.total_volume - a.total_volume)})
+      }).catch((err)=> this.setState({blockError:'Too Deep! Try searching smaller block difference, ie: from-block:4,000,000 to-block:4,200,000 '}))
+      this.loadDays()
+      }
+
+
   async loadDays(){ 
  
     this.setState({
       swaps:[],
       address_swaps:[],
+      address_swapss:[],
       filter:[],
       sortedVolume:[],
       loading:true
@@ -214,31 +455,35 @@ this.setState({
         var newest = events.concat().sort((a,b)=> b.blockNumber- a.blockNumber);
         this.setState({swaps:newest.map(value=>(value.returnValues))},()=>console.log());
           for(var i = 0; i < this.state.swaps.length;i++){
-              this.setState({address_swaps:[...this.state.address_swaps,{address:this.state.swaps[i].to,
+              this.setState({address_swapss:[...this.state.address_swapss,{address:this.state.swaps[i].to,
                 ditto_in:this.state.swaps[i].amount0Out / 1000000000,
                 ditto_out:this.state.swaps[i].amount0In / 1000000000, 
                 total_volume:(this.state.swaps[i].amount0Out / 1000000000) + this.state.swaps[i].amount0In / 1000000000,
                 fromBlock:numeral(this.state.fromBlock).format('0,00'),
                 toBlock:numeral(this.state.toBlock).format('0,00')}]})
                     
-       let index = this.state.filter.findIndex(x=>x.address ===  this.state.address_swaps[i].address)
+       let index = this.state.filter.findIndex(x=>x.address ===  this.state.address_swapss[i].address)
         if(index === -1){
-          this.setState({filter:[...this.state.filter,this.state.address_swaps[i]]})
+          this.setState({filter:[...this.state.filter,this.state.address_swapss[i]]})
         }
     
        else{
     
-        let filter=  [...this.state.filter]
-        let In = this.state.filter[index].ditto_in + this.state.address_swaps[i].ditto_in
-        let Out = this.state.filter[index].ditto_out + this.state.address_swaps[i].ditto_out 
-        let total =  In + Out
-        
-         filter[index] = {address:this.state.filter[index].address, ditto_in:In,ditto_out:Out, 
-                          total_volume:total,
-                          fromBlock:numeral(this.state.fromBlock).format('0,00'),
-                          toBlock:numeral(this.state.toBlock).format('0,00')}
+        let filter = [...this.state.filter]
+        let transfer = this.state.filter[index].transfer_in
+        let In = this.state.filter[index].ditto_in + this.state.address_swapss[i].ditto_in
+        let Out = this.state.filter[index].ditto_out + this.state.address_swapss[i].ditto_out 
+        let total =  transfer + In + Out
     
-         this.setState({filter,lastKnownBlock:currentBlock })
+        filter[index] = {address:this.state.filter[index].address, 
+                    transfer_in:transfer,
+                    ditto_in:In,
+                    ditto_out:Out, 
+                    total_volume:total,
+                    fromBlock:numeral(this.state.fromBlock).format('0,00'),
+                    toBlock:numeral(this.state.toBlock).format('0,00')}
+    
+         this.setState({filter,lastKnownBlock:currentBlock })     
     
        }
        
@@ -249,7 +494,8 @@ this.setState({
         && blacklisted.address !== Blacklist.Address[2]
         && blacklisted.address !== Blacklist.Address[3]
         && blacklisted.address !== Blacklist.Address[4]
-        && blacklisted.address !== Blacklist.Address[5] 
+        && blacklisted.address !== Blacklist.Address[5]
+        && blacklisted.address !== Blacklist.Address[6] 
         )})
 
       this.setState({sortedVolume:this.state.whitelist.concat().sort((a,b)=> b.total_volume - a.total_volume),loading:false})
@@ -283,7 +529,7 @@ this.setState({
       blockError:'',
       fromBlock:this.state.proxyFrom,
       toBlock:parseInt(this.state.proxyFrom) + parseInt(event.target.value),
-		},()=>this.loadDays());
+		},()=>this.searchDay());
 
   }
 }
@@ -302,20 +548,25 @@ search = (event)=>{
   this.setState({ blockError:'',
                   fromBlock:this.state.proxyFrom,
                   toBlock:this.state.proxyTo,
-                  blockError:''},()=>this.loadBlockchain())
+                  blockError:''},()=>this.loadSearch())
   }
 }
 
 tradingCompetition = (event)=>{
-this.loadDay()        
+this.loadToken()        
             
 }
+
+
+
+
 
     render(){
 
       const headers = [
         { label: "Address", key: "address" },
         { label: "Total Volume", key: "total_volume" },
+        { label: "Total Transfer", key: "transfer_in" },
         { label: "Total Ditto Bought", key: "ditto_in" },
         { label: "Total Ditto Sold", key: "ditto_out" },
         { label: "From Block", key: "fromBlock" },
@@ -409,7 +660,7 @@ this.loadDay()
          </div>
      </header>
      
-         
+         <p className='footer'>Pancakes are best served with coffee: 0x20F857b13D6C546eC77aFE47317EA3c5a75c1c6c</p>
 
     </div>
     
@@ -418,7 +669,9 @@ this.loadDay()
 
 componentDidMount() {
   this._isMounted = true;
-  this.loadDay();
+  
+ this.loadToken();
+  //this.loadDay();
 }
 
 
