@@ -45,14 +45,17 @@ class App extends Component {
         loading:true,
 
         blockError:[],
+        optionText:'View 1-5 Days of Trading Competition',
         whitelist:[],
 
         transfers:[],
         sorted_transfers:[],
 
-        numberOfDays_competition:10,
+        numberOfDays_competition:5,
         competitionStartBlock:4438000,
         lastKnownBlock:0,
+        
+
         /*These values are gonna need to change for another trading competition,
         the program will automatically compute based on the given values.
          
@@ -135,36 +138,30 @@ class App extends Component {
           )})
     
         this.setState({sortedVolume:this.state.whitelist.concat().sort((a,b)=> b.total_volume - a.total_volume)})
-        }).catch((err)=> this.setState({blockError:'Too Deep! Try searching smaller block difference, ie: from-block:4,000,000 to-block:4,200,000 '}))
-        this.loadDay()
+        }).catch((err)=>this.loadToken())
+        setTimeout(()=>this.loadDay(),2500)
         }
 
 
 
   async loadDay(){ 
- 
+      
       this.setState({
       swaps:[],
       address_swaps:[],
       address_swapss:[],
       filter:[],
       sortedVolume:[],
-      loading:true
+      loading:true,
+      blockError:''
       })
        
         const web3 = new Web3('https://bsc-dataseed1.binance.org:443');
         const ditto_pair=  new web3.eth.Contract(ditto_swap_abi, ditto_swap_address);
         this.setState({ditto_pair:ditto_pair});
-        const currentBlock = await web3.eth.getBlockNumber()
-        this.setState({fromBlock:this.state.competitionStartBlock,toBlock:this.state.competitionStartBlock + (this.state.blocksPerDay * this.state.numberOfDays_competition),lastKnownBlock:currentBlock })
+        this.setState({fromBlock:this.state.competitionStartBlock,toBlock:this.state.competitionStartBlock + (this.state.blocksPerDay * this.state.numberOfDays_competition)})
 
-        const current_time = await web3.eth.getBlock(this.state.lastKnownBlock)
-        const start_time = await web3.eth.getBlock(this.state.competitionStartBlock)
-        let competitionDays = (this.state.blocksPerDay * this.state.numberOfDays_competition)*3
-
-        this.setState({start_time:new Date(parseInt(start_time.timestamp,10)*1000),
-                       end_time:new Date(parseInt(start_time.timestamp + competitionDays,10)*1000),
-                       lastKnownTime:new Date(parseInt(current_time.timestamp,10)*1000)})
+        
        
         
         ditto_pair.getPastEvents("Swap",{fromBlock:this.state.fromBlock, toBlock:this.state.toBlock})
@@ -202,7 +199,7 @@ class App extends Component {
                       fromBlock:numeral(this.state.fromBlock).format('0,00'),
                       toBlock:numeral(this.state.toBlock).format('0,00')}
       
-           this.setState({filter,lastKnownBlock:currentBlock })     
+           this.setState({filter})     
          }      
         }
         
@@ -215,7 +212,7 @@ class App extends Component {
           )})
 
         this.setState({sortedVolume:this.state.whitelist.concat().sort((a,b)=> b.total_volume - a.total_volume),loading:false})
-        }).catch((err)=> this.setState({blockError:'Too Deep! Try searching smaller block difference, ie: from-block:4,000,000 to-block:4,200,000 '}))
+        }).catch((err)=>this.loadToken())
         
     }
 
@@ -285,8 +282,8 @@ async loadSearch(){
       )})
 
     this.setState({sortedVolume:this.state.whitelist.concat().sort((a,b)=> b.total_volume - a.total_volume)})
-    }).catch((err)=> this.setState({blockError:'Too Deep! Try searching smaller block difference, ie: from-block:4,000,000 to-block:4,200,000 '}))
-    this.loadBlockchain()
+    }).catch((err)=> this.setState({blockError:'Too Deep! Try searching smaller block difference, ie: from-block:4,000,000 to-block:4,200,000',loading:false,sortedVolume:[]}))
+    setTimeout(()=>this.loadBlockchain(),2000)
     }
 
 
@@ -359,7 +356,7 @@ this.setState({
 
   this.setState({sortedVolume:this.state.whitelist.concat().sort((a,b)=> b.total_volume - a.total_volume),loading:false})   
  
-}).catch((err)=> this.setState({blockError:'Too Deep! Try searching smaller block difference, ie: from-block:4,000,000 to-block:4,200,000 '}))
+}).catch((err)=> this.setState({blockError:'Too Deep! Try searching smaller block difference, ie: from-block:4,000,000 to-block:4,200,000',loading:false,sortedVolume:[]}))
   
   }
 
@@ -428,8 +425,8 @@ this.setState({
         )})
   
       this.setState({sortedVolume:this.state.whitelist.concat().sort((a,b)=> b.total_volume - a.total_volume)})
-      }).catch((err)=> this.setState({blockError:'Too Deep! Try searching smaller block difference, ie: from-block:4,000,000 to-block:4,200,000 '}))
-      this.loadDays()
+      }).catch((err)=> this.setState({blockError:'Too Deep! Try searching smaller block difference, ie: from-block:4,000,000 to-block:4,200,000',loading:false,sortedVolume:[]}))
+      setTimeout(()=>this.loadDays(),2000)
       }
 
 
@@ -500,7 +497,7 @@ this.setState({
 
       this.setState({sortedVolume:this.state.whitelist.concat().sort((a,b)=> b.total_volume - a.total_volume),loading:false})
 
-      }).catch((err)=> this.setState({blockError:'Too Deep! Try searching smaller block difference, ie: from-block:4,000,000 to-block:4,200,000 '}))
+      }).catch((err)=> this.setState({blockError:'Too Deep! Try searching smaller block difference, ie: from-block:4,000,000 to-block:4,200,000',loading:false,sortedVolume:[]}))
       
       }
 
@@ -532,6 +529,18 @@ this.setState({
 		},()=>this.searchDay());
 
   }
+}
+
+handleViewChange = (event) => {
+  let blocks = parseInt(event.target.value)
+  if(blocks === 4438000){
+    this.setState({optionText:'View 1-5 Days of Trading Competition'})
+  }
+
+  else if(blocks === 4582000) {
+    this.setState({optionText:'View 6-10 Days of Trading Competition'})
+  }
+  this.setState({competitionStartBlock:blocks,blockError:''},()=>this.loadToken())
 }
 
 
@@ -655,14 +664,22 @@ this.loadToken()
               </table> 
               {this.state.loading &&<img className="loadingLogo" src={Ditto} border={1} alt="Ditto logo" width={20}></img>}
              </div>
+             
              {!this.state.loading &&<CSVLink className='disclaimer2' data={this.state.sortedVolume} headers={headers}>Download as CSV</CSVLink>}
+         
+          <div className="mt-5 mb-5">
+          {!this.state.loading && <select className="verify" onChange={this.handleViewChange}>
+              <option selected disabled hidden>{this.state.optionText}</option>
+              <option value={4438000}>View 1-5 Days of Trading Competition</option>
+              <option value={4582000}>View 6-10 Days of Trading Competition</option>
+              </select>}
+          </div>
 
          </div>
      </header>
      
-         <p className='footer'>Day 1 - Day 5 is from block 4438000-4582000</p>
+        <p className='footer'>Day 1 - Day 5 is from block 4438000-4582000</p>
          <p className='footer'>Day 6 - Day 10 is from block 4582001-4726000</p>
-
 
     </div>
     
@@ -670,9 +687,8 @@ this.loadToken()
 }
 
 componentDidMount() {
-  this._isMounted = true;
-  
- this.loadToken();
+  this._isMounted = true; 
+  this.loadToken();
   //this.loadDay();
 }
 
