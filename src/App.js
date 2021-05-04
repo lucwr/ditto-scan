@@ -76,7 +76,7 @@ class App extends Component {
         loading:true
       })
        
-        const web3 = new Web3('https://bsc-dataseed1.binance.org:443');
+        const web3 = new Web3('http://binance.ankr.com:8545/');
         const ditto_token = new web3.eth.Contract(ditto_token_abi, ditto_token_address);
         this.setState({ditto_token:ditto_token});
         const currentBlock = await web3.eth.getBlockNumber()
@@ -156,7 +156,7 @@ class App extends Component {
       blockError:''
       })
        
-        const web3 = new Web3('https://bsc-dataseed1.binance.org:443');
+        const web3 = new Web3('http://binance.ankr.com:8545/');
         const ditto_pair=  new web3.eth.Contract(ditto_swap_abi, ditto_swap_address);
         this.setState({ditto_pair:ditto_pair});
         this.setState({fromBlock:this.state.competitionStartBlock,toBlock:this.state.competitionStartBlock + (this.state.blocksPerDay * this.state.numberOfDays_competition)})
@@ -228,7 +228,7 @@ async loadSearch(){
     loading:true
   })
    
-    const web3 = new Web3('https://bsc-dataseed1.binance.org:443');
+    const web3 = new Web3('http://binance.ankr.com:8545/');
     const ditto_token = new web3.eth.Contract(ditto_token_abi, ditto_token_address);
     this.setState({ditto_token:ditto_token});
     const currentBlock = await web3.eth.getBlockNumber();
